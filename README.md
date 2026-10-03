@@ -94,11 +94,26 @@ monkeypatched), so it runs in a couple of seconds with no network or API key.
 |---|---|
 | `app.py` | Gradio 6 `gr.Blocks` 3-column emergency command UI; renders the card |
 | `commander.py` | The single Agno "Commander" agent (`finish_triage` tool, multi-turn session) |
+| `knowledge/` | Developer-maintained Markdown facts and operator instructions injected into Commander context |
 | `triage_state.py` | Deterministic layer: `TriageState`, `coerce_triage`, `assess_urgency`, `rank_hospitals` (no LLM) |
 | `context.py` | Live context: freehealth beds + OSRM ETA + Open-Meteo weather + BIPAD alerts (all free, keyless) |
 | `publicbodies.py` | Public body + Information Officer lookup for the caller's district (offline CSV) |
 | `data/publicbodies.csv` | Vendored snapshot of the Open Knowledge Nepal publicbodies dataset |
 | `tests/` | Offline pytest suite for the deterministic layer, commander, and context |
+
+## Add verified operator guidance
+
+Put Nepal-specific facts and manual operating instructions in the Markdown files
+under [`knowledge/`](./knowledge/). The Commander automatically loads every
+`.md` file there except its README. Keep the content conservative: include a
+source URL and review date for every time-sensitive fact, and label
+location-dependent services clearly. The contents are injected into the Agno
+Commander instructions, while safety-critical urgency and routing remain owned
+by the deterministic Python layer.
+
+Do not add secrets, patient data, diagnoses, medication dosing, or unsupported
+hospital capabilities here. Re-check emergency numbers and service coverage
+before changing them.
 | `.env` | Local secrets (gitignored) |
 | `.env.example` | Template for `.env` |
 | `requirements.txt` | Dependencies (mirrors `pyproject.toml`) |

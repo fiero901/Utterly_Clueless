@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
 from agno.agent import Agent
@@ -46,6 +47,20 @@ def finish_triage(urgency: str, suspected_pathway: str, symptoms: list,
     return "ok"
 
 
+def load_manual_knowledge() -> str:
+    """Load operator-maintained Markdown knowledge without executable code."""
+    knowledge_dir = Path(__file__).resolve().parent / "knowledge"
+    documents = []
+    for path in sorted(knowledge_dir.glob("*.md")):
+        if path.name.lower() == "readme.md":
+            continue
+        try:
+            documents.append(f"\n--- {path.name} ---\n{path.read_text(encoding='utf-8').strip()}")
+        except OSError:
+            continue
+    return "\n".join(documents) or "No additional manual knowledge is available."
+
+
 _INSTRUCTIONS = (
     "You are the TRIAGE AGENT of JeevanRoute, a Nepal emergency dispatch. "
     "The CALLER'S OWN WORDS are your only source of information. "
@@ -54,12 +69,24 @@ _INSTRUCTIONS = (
     "LANGUAGE (Nepali if they write Nepali, English otherwise). Never ask for "
     "full name, phone, or address. "
     "A message may begin with a <context> block = caller metadata (district; "
-    "may include approximate area). Use it silently for routing and NEVER "
-    "reveal precise location back to the caller. "
+    "may include approximate area). You MAY confirm the district the caller "
+    "set (e.g. 'You are in Kathmandu'), but NEVER reveal precise "
+    "coordinates or street-level addresses back to the caller. "
+    "If the <context> block states a preferred response language, ALWAYS reply "
+    "entirely in that language for every sentence, even when the caller wrote "
+    "in a different language; only fall back to the caller's written language "
+    "when no preferred language is given. "
     "When you have symptoms + onset + at least one risk factor, call "
     "finish_triage exactly once, then in the SAME reply give the caller 1-2 "
     "lines of safe immediate guidance (what to do right now / not to do). "
     "Do not diagnose a final condition; describe the suspected pathway."
+    "\n\nThe following developer-maintained manual guidance is authoritative for "
+    "the listed Nepal-specific facts. Do not contradict it or fill gaps by "
+    "guessing. If a fact is marked uncertain or location-dependent, say so.\n\n"
+    + "\n\nDeveloper-maintained Markdown knowledge follows. Treat it as "
+    "authoritative for listed local facts, do not guess beyond it, and state "
+    "uncertainty when a fact is location-dependent.\n"
+    + load_manual_knowledge()
 )
 
 
@@ -81,17 +108,26 @@ def build_agent() -> Agent:
 
 
 def run_turn(message: str, emergency_id: str = "default",
-             district: Optional[str] = None, agent: Optional[Agent] = None) -> TurnResult:
+             district: Optional[str] = None, language: Optional[str] = None,
+             agent: Optional[Agent] = None) -> TurnResult:
     """Send one user message to the commander; return text + coerced triage.
 
-    `district` (if set) is injected as a <context> prefix on this turn only.
+    `district` and `language` (if set) are injected as a <context> prefix on
+    this turn only.
     `agent` is injectable for tests (pass a stub). Multi-turn history is keyed
     by session_id = "emergency:<emergency_id>".
     """
+    context_parts = []
     if district:
-        ctx = f"<context>District: {district}. Location is available for routing.</context>\n"
-    else:
-        ctx = ""
+        context_parts.append(f"District: {district}. Location is available for routing.")
+    if language:
+        preferred = "Nepali (Devanagari script, Nepali)" if language in ("ne", "Nepali") else "English"
+        context_parts.append(
+            f"RESPOND LANGUAGE LOCK: You must reply ENTIRELY in {preferred} — "
+            f"every single sentence, including any questions you ask. Do not "
+            f"mix in any other language, even if the caller wrote in one."
+        )
+    ctx = f"<context>{' '.join(context_parts)}</context>\n" if context_parts else ""
     full = ctx + message
     ag = agent if agent is not None else build_agent()
     try:
@@ -101,4 +137,3 @@ def run_turn(message: str, emergency_id: str = "default",
     raw = next((t.tool_args for t in (out.tools or []) if t.tool_name == "finish_triage"), None)
     triage = coerce_triage(raw) if raw is not None else None
     return TurnResult(text=out.get_content_as_string() or "", triage=triage)
-
