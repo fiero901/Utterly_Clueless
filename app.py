@@ -798,9 +798,9 @@ def build_ui():
             with gr.Column(scale=3, elem_classes="jr-panel"):
                 how_title_md = gr.Markdown(_t("how_title", "en"), elem_id="jr-how-title")
                 with gr.Row(elem_classes="jr-how-grid", elem_id="jr-how-body"):
-                    gr.Markdown("### 1 · Understand\n\nTell me what happened and when. I’ll ask only the key questions.", elem_classes="jr-how-step")
-                    gr.Markdown("### 2 · Assess\n\nSafety rules identify red flags and how quickly help is needed.", elem_classes="jr-how-step")
-                    gr.Markdown("### 3 · Route\n\nGet an action plan and the best available nearby facility.", elem_classes="jr-how-step")
+                    how_1_md = gr.Markdown(_t("how_1_t", "en") + "\n\n" + _t("how_1", "en"), elem_classes="jr-how-step")
+                    how_2_md = gr.Markdown(_t("how_2_t", "en") + "\n\n" + _t("how_2", "en"), elem_classes="jr-how-step")
+                    how_3_md = gr.Markdown(_t("how_3_t", "en") + "\n\n" + _t("how_3", "en"), elem_classes="jr-how-step")
                 # Gradio 6: Chatbot is ALWAYS messages format (no `type` param).
                 chatbot = gr.Chatbot(height=480, placeholder="Your conversation will appear here. Start by describing what is happening.")
                 start_md = gr.Markdown("**Start here:** Tell me who needs help, what happened, and when it started. You can write in English or Nepali.", elem_id="jr-start")
@@ -880,6 +880,9 @@ def build_ui():
                 gr.update(placeholder=_t("district_ph", code)),
                 gr.update(value=_t("geolocate", code)),
                 _t("how_title", code),
+                _t("how_1_t", code) + "\n\n" + _t("how_1", code),
+                _t("how_2_t", code) + "\n\n" + _t("how_2", code),
+                _t("how_3_t", code) + "\n\n" + _t("how_3", code),
                 _t("start_here", code),
                 gr.update(label=_t("input_label", code)),
                 gr.update(placeholder=_t("input_ph", code)),
@@ -889,18 +892,29 @@ def build_ui():
             )
 
         _lang_outputs = [hero_md, alert_md, details_title_md, details_sub_md, district_in,
-                         district_in, geolocate, how_title_md, start_md, msg, msg,
-                         voice_status_md, status_title_md, status_md]
+                         district_in, geolocate, how_title_md, how_1_md, how_2_md, how_3_md,
+                         start_md, msg, msg, voice_status_md, status_title_md, status_md]
 
         def _restore_language(language):
             """On page load, restore the saved language (from cookie) and re-render
-            every string. Reuses the live re-render so both stay in sync."""
-            return _apply_language(language)
+            every string. Returns the radio (value+label) first, then the shared
+            re-render tuple, matching `outputs=[lang] + _lang_outputs`."""
+            code = _code(language)
+            return [gr.update(value=language, label=_t("lang_label", code))] + list(_apply_language(language))
 
         lang.change(
             _apply_language,
             inputs=[lang],
             outputs=_lang_outputs,
+        )
+        # Also translate the radio's own "Preferred language" label (separate
+        # handler, since a component cannot be its own output).
+        def _lang_label(language):
+            return gr.update(label=_t("lang_label", "ne" if language == "Nepali" else "en"))
+        lang.change(
+            _lang_label,
+            inputs=[lang],
+            outputs=[lang],
         )
         # Persist the chosen language to a real cookie on every change (durable
         # across reloads, unlike the per-queue BrowserState).
