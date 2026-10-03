@@ -888,12 +888,35 @@ def build_ui():
                 _t("status_ready", code),
             )
 
+        _lang_outputs = [hero_md, alert_md, details_title_md, details_sub_md, district_in,
+                         district_in, geolocate, how_title_md, start_md, msg, msg,
+                         voice_status_md, status_title_md, status_md]
+
+        def _restore_language(language):
+            """On page load, restore the saved language (from cookie) and re-render
+            every string. Reuses the live re-render so both stay in sync."""
+            return _apply_language(language)
+
         lang.change(
             _apply_language,
             inputs=[lang],
-            outputs=[hero_md, alert_md, details_title_md, details_sub_md, district_in,
-                     district_in, geolocate, how_title_md, start_md, msg, msg,
-                     voice_status_md, status_title_md, status_md],
+            outputs=_lang_outputs,
+        )
+        # Persist the chosen language to a real cookie on every change (durable
+        # across reloads, unlike the per-queue BrowserState).
+        lang.change(
+            None,
+            inputs=[],
+            outputs=[],
+            js=SAVE_LANG_JS,
+        )
+        # Restore the language from the cookie on load: read the cookie in JS,
+        # feed it back as the radio value, and re-render all strings.
+        demo.load(
+            _restore_language,
+            inputs=[lang],
+            outputs=[lang] + _lang_outputs,
+            js=RESTORE_LANG_JS,
         )
 
         geolocate.click(
