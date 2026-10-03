@@ -7,7 +7,6 @@ import gradio as gr
 from dotenv import load_dotenv
 
 import context
-import publicbodies
 import triage_state
 from commander import run_turn
 
@@ -56,7 +55,8 @@ _BROWSER_DEFAULT = {
 def _render_card(triage: triage_state.TriageState, ranked: list,
                  context_block: str, district: str) -> str:
     urgency = triage.urgency
-    badge = {"critical": "🔴 Critical", "urgent": "🟠 Urgent", "stable": "🟢 Stable"}.get(urgency, urgency)
+    badge = {"critical": "🔴 Critical", "urgent": "🟠 Urgent",
+             "stable": "🟢 Stable"}.get(urgency, urgency)
     lines = [f"### Triage — {badge}", ""]
 
     if triage.call_now:
@@ -126,11 +126,14 @@ def _route(triage: triage_state.TriageState, district: str) -> tuple[list, str]:
     return ranked, context_block
 
 
-def _respond(history: list, message: str, emergency_id: str, district: str) -> tuple:
+def _respond(history: list, message: str, emergency_id: str, district: str,
+             profile: dict) -> tuple:
     """One user turn: interview via commander, then deterministic triage/route.
 
     `district` is the caller's district (from the widget/profile); it is
     injected into the commander turn and used for deterministic routing.
+    `profile` (the BrowserState dict) receives the structured history entry +
+    last_triage — never the medical chat text (privacy by design).
     """
     res = run_turn(message, emergency_id=emergency_id, district=district, agent=_agent())
     # MultimodalTextbox yields {"text":..., "files":[...]}; show the text part.
@@ -211,11 +214,7 @@ def _progress_md(completed: int = 0, active: int = 0) -> str:
 
 
 def build_ui():
-    css = """
-    .brand {font-size:1.4rem; font-weight:700;}
-    .card {border:1px solid #ddd; border-radius:12px; padding:12px; margin:6px 0;}
-    """
-    with gr.Blocks(title="JeevanRoute", css=css) as demo:
+    with gr.Blocks(title="JeevanRoute") as demo:
         profile = gr.BrowserState(_BROWSER_DEFAULT, storage_key="jeevanroute")
         emergency_id = gr.Textbox(label="Session ID (internal)", value="default", visible=False)
 
@@ -290,11 +289,11 @@ def build_ui():
             # Route from the district the caller set (widget or geolocation).
             routing_district = (district or (profile or {}).get("district") or "").strip()
             new_hist, new_msg, status, progress = _respond(
-                history, message, emergency_id, routing_district)
+                history, message, emergency_id, routing_district, new_profile)
             return (new_hist, new_msg, status, progress, new_profile,
                     _show_history(new_profile))
 
-        def _locate(lat_lng):
+        def _locate(lat_lng=None):
             if not lat_lng or len(lat_lng) < 2:
                 return "", "⚠️ Could not get location — type your district instead."
             d, note = get_location(lat_lng[0], lat_lng[1])
@@ -302,8 +301,9 @@ def build_ui():
 
         geolocate.click(
             _locate,
-            inputs=gr.Javascript(GEO_JS),
-            outputs=[district_in, geo_status])
+            inputs=[],
+            outputs=[district_in, geo_status],
+            js=GEO_JS)
 
         _outs = [chatbot, msg, status_md, progress_md, profile, history_md]
         _ins = [msg, chatbot, emergency_id, profile, district_in, lang]
@@ -316,7 +316,11 @@ def build_ui():
 def main():
     load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
     demo = build_ui()
-    demo.queue().launch(server_name="0.0.0.0", server_port=7860)
+    demo.queue().launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+        css=".card {border:1px solid #ddd; border-radius:12px; padding:12px; margin:6px 0;}",
+    )
 
 
 if __name__ == "__main__":

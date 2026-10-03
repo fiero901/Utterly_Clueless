@@ -14,7 +14,6 @@ from typing import Optional
 from agno.agent import Agent
 from agno.db.in_memory import InMemoryDb
 from agno.models.openai import OpenAIChat
-from agno.tools import tool
 
 from triage_state import TriageState, coerce_triage
 
@@ -84,7 +83,10 @@ def run_turn(message: str, emergency_id: str = "default",
     `agent` is injectable for tests (pass a stub). Multi-turn history is keyed
     by session_id = "emergency:<emergency_id>".
     """
-    ctx = f"<context>District: {district}. Location is available for routing.</context>\n" if district else ""
+    if district:
+        ctx = f"<context>District: {district}. Location is available for routing.</context>\n"
+    else:
+        ctx = ""
     full = ctx + message
     ag = agent if agent is not None else build_agent()
     out = ag.run(full, session_id=f"emergency:{emergency_id}")

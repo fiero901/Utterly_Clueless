@@ -196,7 +196,8 @@ def candidate_pool(beds: list, district: str, triage: TriageState, limit: int = 
     return with_beds[:limit]
 
 
-def rank_hospitals(pool: list, triage: TriageState, district: str, eta_map: Optional[dict] = None) -> list:
+def rank_hospitals(pool: list, triage: TriageState, district: str,
+                   eta_map: Optional[dict] = None) -> list:
     """Score + rank candidate hospitals. Deterministic, no LLM.
 
     `eta_map` maps facility_name -> driving minutes (added by the UI when a

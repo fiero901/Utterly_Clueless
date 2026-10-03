@@ -268,12 +268,14 @@ def disaster_warnings(lat, lng, within_km=150, lookback_days=30):
 
             if kind == "earthquake":
                 if ts >= cutoff:
-                    recent.append(f"⚠ Earthquake{mag_s} near {place} ({days_ago}d ago, ~{round(dist)} km)")
+                    recent.append(f"⚠ Earthquake{mag_s} near {place} "
+                                  f"({days_ago}d ago, ~{round(dist)} km)")
                 else:
                     historical.append((mag or 0, dist, f"{place}", mag_s, ts))
             else:
                 if ts >= cutoff:
-                    recent.append(f"🔥 Fire reported near {place} ({days_ago}d ago, ~{round(dist)} km)")
+                    recent.append(f"🔥 Fire reported near {place} "
+                                  f"({days_ago}d ago, ~{round(dist)} km)")
 
     if recent:
         return recent[:4]

@@ -60,7 +60,7 @@ def _load():
     rows = []
     with open(_CSV_PATH, newline="", encoding="utf-8") as f:
         reader = csv.reader(f)
-        header = next(reader, None)  # skip header
+        next(reader, None)  # skip header
         for r in reader:
             if len(r) < 9:
                 continue
@@ -176,7 +176,9 @@ def render_block(result):
 if __name__ == "__main__":
     # Quick self-test.
     import json
-    for d, q in [("Kathmandu", ""), ("Kathmandu", "health"), ("Lalitpur", ""), ("Chitwan", "police")]:
+    cases = [("Kathmandu", ""), ("Kathmandu", "health"),
+             ("Lalitpur", ""), ("Chitwan", "police")]
+    for d, q in cases:
         r = find_officer(d, q)
         print(f"--- district={d!r} query={q!r} ---")
         print(json.dumps(r, indent=2, ensure_ascii=False) if r else "  (no match)")
