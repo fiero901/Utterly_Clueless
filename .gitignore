@@ -11,5 +11,8 @@ venv/
 # Gradio
 .gradio/
 
+# Local embedding model (download with ./fetch_model.sh)
+models/
+
 # OS
 .DS_Store

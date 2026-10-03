@@ -63,14 +63,26 @@ FINISH_TOOL = {
 }
 
 
-def triage_turn(history):
+def triage_turn(history, memory_context=""):
     """Send the chat history to the model.
+
+    Args:
+      history: list of {"role", "content"} messages (OpenAI format).
+      memory_context: optional string of recalled local memories (from the
+        browser-side memory layer). When non-empty it is prepended to the
+        system prompt so the agent can use prior context.
 
     Returns (reply_text, triage_dict):
       - reply_text: the model's message to show the user (question or guidance)
       - triage_dict: the structured state if finish_triage was called, else None
     """
-    messages = [{"role": "system", "content": SYSTEM}] + history
+    system = SYSTEM
+    if memory_context and memory_context.strip():
+        system += (
+            "\n\nRelevant local memories (from this device, provided by the user's "
+            "browser — treat as prior context, not new input):\n" + memory_context.strip()
+        )
+    messages = [{"role": "system", "content": system}] + history
     resp = client.chat.completions.create(
         model="default",
         tools=[FINISH_TOOL],

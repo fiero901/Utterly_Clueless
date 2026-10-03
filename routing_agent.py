@@ -18,6 +18,9 @@ import requests
 from openai import OpenAI
 from dotenv import load_dotenv
 
+from context import build_context_block
+from publicbodies import find_officer, render_block as render_publicbody_block
+
 load_dotenv()
 
 _API_KEY = os.environ.get("SIMULACHAT_API_KEY")
@@ -58,8 +61,11 @@ def _candidates(triage, district, limit=12):
     return pool[:limit]
 
 
-def route(triage, district=""):
+def route(triage, district="", origin_coords=None):
     """Recommend a hospital for a triage state.
+
+    `origin_coords` = optional (lat, lng) tuple from browser geolocation;
+                      passed through to build_context_block for accurate ETA.
 
     Returns a dict:
       {
@@ -135,6 +141,31 @@ def route(triage, district=""):
         f"• Contact: {rec.get('contact_person', '')} — {rec.get('contact_number', '')}\n"
         f"• Why: {pick.get('reason', '')}"
     )
+
+    # Live context (free, keyless): real OSRM ETA + weather + disaster alerts.
+    # Never let a flaky external call break the card — wrap in try/except.
+    try:
+        ctx = build_context_block(
+            origin_name=district,
+            dest_name=rec.get("palika_name", ""),
+            dest_district=rec.get("district_name", ""),
+            origin_coords=origin_coords,
+        )
+        if ctx:
+            block += "\n\n" + ctx
+    except Exception:
+        pass
+
+    # Public body / Information Officer for the caller's district (offline CSV).
+    # Gives a direct contact for RTI/information requests or follow-ups.
+    try:
+        pb = find_officer(district)
+        pb_block = render_publicbody_block(pb)
+        if pb_block:
+            block += pb_block
+    except Exception:
+        pass
+
     return {"recommended": rec, "block": block, "candidates": len(cands)}
 
 
