@@ -133,26 +133,35 @@ severity, the "call 102" gate, hospital ranking) — the model cannot make them.
    hard red flags (unconscious, no breathing, major bleeding, stroke symptoms,
    chest pain + sweating) and sets `call_102` + `needs_ambulance`. This can
    **override** the coerced value upward (never down).
-5. **`rank_hospitals(cands, triage, district)`** (deterministic):
-   fetch freehealth beds (live), filter district-first (else same-province),
-   then rank by a transparent score:
-   `score = w_beds*free_beds + w_cap*capacity_proxy + w_dist*proximity`
-   - `capacity_proxy` = `total_bed_capacity` (larger facility ⇒ more likely to
-     have CT/ICU/stroke capability). **The live feed has NO capability flags**
-     (this is why the old code used the LLM to *assume* them), so we proxy
-     capability from facility size rather than inventing it.
-   - `proximity` uses `context.driving_minutes` when coords exist, else
-     district/`palika` match as a fallback (no raw-GPS leak to the model).
+5. **`rank_hospitals(cands, triage, district, eta_map=None)`** (deterministic,
+   **pure/offline** — no network): filter district-first (else same-province),
+   then rank by a transparent score over the fields the feed actually has:
+   `score = 1.0*norm(free_beds) + 0.5*norm(capacity) + 0.5*norm(eta)`
+   - `capacity` = `total_bed_capacity` (larger facility ⇒ more likely to have
+     CT/ICU/stroke capability). **The live feed has NO capability flags** (why
+     the old code used the LLM to *assume* them), so we proxy capability from
+     facility size rather than inventing it.
+   - `eta` term is only applied when the caller passes an optional
+     `eta_map = {facility_name: eta_minutes}` (computed by `app.py` via
+     `context.driving_minutes`); otherwise it's 0 — so ranking never blocks on
+     the slow Nominatim/OSRM calls.
    - **Displayed capabilities** on the card are a small, explicit
      named-facility mapping (e.g. "…Teaching Hospital" ⇒ CT/ICU) labelled
-     "assumed"; everything else shows "general emergency". **No LLM in
-     ranking or capability display.**
+     "assumed"; everything else shows "general emergency".
+   - The card's **ETA / weather / disaster** lines come from `context.py`
+     (existing, already degrades gracefully). **No LLM in ranking or
+     capability display; no raw GPS leaked to the model.**
 6. **Render** (assistant turns, in order):
-   - tool-activity `ChatMessage.metadata` (each completed step:
-     "🏥 Checking hospitals", "🚑 Ambulance", "📍 Calculating ETA", …),
-   - the emergency **card** (urgency emoji, symptoms, do/don't, call-102),
-   - the **rich hospital card** as `ComponentMessage` (facility, capability ✓,
-     distance, [📞 Call], [📍 Directions]).
+   - the agent's **reply text** (its question or closing guidance);
+   - the emergency **card** (urgency emoji, symptoms, do/don't, call-102) as
+     formatted Markdown;
+   - the **hospital card** as formatted Markdown with real `tel:` and
+     Google-Maps links (guaranteed to render in any Gradio theme). (A native
+     `Chatbot type="component"` card is the Phase 2 upgrade.)
+   - a trailing **status line** listing the completed pipeline steps
+     ("🏥 Hospitals ✓  🚑 Ambulance ✓  📍 ETA ✓") — the proven "updating
+     status message" pattern already used by the current app. (Native
+     `ChatMessage.metadata` collapsible thoughts are the Phase 2 upgrade.)
 7. **Update** Live Status card + advance `Walkthrough` step; **persist** the
    message list + current `TriageState` to `BrowserState` (keyed by
    `emergency_id`).
@@ -165,9 +174,19 @@ severity, the "call 102" gate, hospital ranking) — the model cannot make them.
   `outputs` each turn — no polling.
 - **Walkthrough steps** (top bar):
   ① Understand → ② Assess urgency → ③ Determine care → ④ Find facility →
-  ⑤ Find transport → ⑥ Action plan. The handler sets
-  `gr.Walkthrough(selected=n)` based on how far the pipeline got this turn
-  (e.g. triage pending = step 1-2; hospital found = step 4-5; plan = step 6).
+  ⑤ Find transport → ⑥ Action plan. The handler reflects how far the pipeline
+  got this turn (e.g. triage pending = step 1-2; hospital found = step 4-5;
+  plan = step 6).
+
+  > **Correction (verified against Gradio 6.29.1):** `gr.Walkthrough` is a
+  > *layout* (`BlockContext`), not a data component — its `selected` value
+  > **cannot be updated from an event handler** (no `.update()`, no state).
+  > Therefore the **live** step-progress is rendered by an updateable
+  > `gr.Markdown` (a 3-line ✅/⏳/⬜ checklist that updates each turn), while
+  > the native `gr.Walkthrough` + `gr.Step` is retained as a *static*
+  > "How this works" legend (collapsible). The six conceptual steps above are
+  > compressed to a 3-phase live indicator (understand / assess / route); the
+  > finer sub-steps remain visible in the static legend and the status card.
 
 ## 8. Browser-local state (replaces `memory.js`)
 
@@ -229,12 +248,15 @@ severity, the "call 102" gate, hospital ranking) — the model cannot make them.
 ## 12. Migration / rollout plan (high level — detailed in writing-plans)
 
 1. **Phase 1 (core, demo-critical):** `triage_state.py` (deterministic, fully
-   unit-tested) → `commander.py` (Agno agent) → rewrite `app.py` (Blocks UI +
-   orchestration + `BrowserState`) → delete `agent_graph.py`,
+   unit-tested: coerce/assess/rank, offline) → `commander.py` (Agno agent) →
+   rewrite `app.py` (Blocks UI + orchestration + `BrowserState` + Walkthrough +
+   Markdown cards + visible status line) → delete `agent_graph.py`,
    `triage_agent.py`, `routing_agent.py`, `memory.js` → README + pyproject
    update (drop `langgraph`, keep `agno`) → validation gate.
-2. **Phase 2 (optional, time-boxed):** multimodal image (bounded), local
-   semantic recall behind a flag, blood-bank lookup.
+2. **Phase 2 (optional, time-boxed):** native `Chatbot type="component"`
+   hospital card + `ChatMessage.metadata` collapsible tool activity;
+   multimodal image (bounded); local-embedding semantic recall behind a flag;
+   blood-bank lookup.
 
 ## 13. Open risks / watch items
 
