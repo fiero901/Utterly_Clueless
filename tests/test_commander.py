@@ -66,3 +66,19 @@ def test_run_turn_coerces_bad_garbage_args_to_stable():
     assert res.triage is not None
     assert res.triage.urgency == "stable"
 
+
+class _RaisingAgent:
+    """Mimics an API failure (e.g. SimulaChat Cloudflare 530)."""
+    def run(self, message, session_id=None, **kwargs):
+        raise RuntimeError("Error code: 530 — Cloudflare tunnel error")
+
+
+def test_run_turn_surfaces_error_instead_of_raising():
+    # An emergency UI must degrade gracefully: a backend failure becomes a
+    # TurnResult.error the UI can show as "try again", never a stack trace.
+    res = run_turn("chest pain", agent=_RaisingAgent())
+    assert res.text == ""
+    assert res.triage is None
+    assert res.error is not None
+    assert "530" in res.error
+

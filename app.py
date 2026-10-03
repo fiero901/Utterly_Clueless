@@ -135,11 +135,25 @@ def _respond(history: list, message: str, emergency_id: str, district: str,
     `profile` (the BrowserState dict) receives the structured history entry +
     last_triage — never the medical chat text (privacy by design).
     """
-    res = run_turn(message, emergency_id=emergency_id, district=district, agent=_agent())
-    # MultimodalTextbox yields {"text":..., "files":[...]}; show the text part.
+    # MultimodalTextbox yields {"text":..., "files":[]}; a plain string is also
+    # tolerated (e.g. tests). The agent sees the text part only — Phase 1 does
+    # not route files to any vision component (bounded, non-diagnostic use).
     user_text = message.get("text") if isinstance(message, dict) else (message or "")
-    history = history + [{"role": "user", "content": user_text},
-                         {"role": "assistant", "content": res.text or "_..._"}]
+    res = run_turn(user_text, emergency_id=emergency_id, district=district, agent=_agent())
+    history = history + [{"role": "user", "content": user_text}]
+
+    # Backend/API failure: surface a clean retry prompt (no crash, no false
+    # progress). Step 1 stays pending so the caller can resend.
+    if res.error is not None:
+        history = history + [{
+            "role": "assistant",
+            "content": ("⚠️ I couldn't reach the emergency service just now — "
+                        "please tap **Send** once more. If it persists, call "
+                        "**102** (ambulance) or **112** directly."),
+        }]
+        return history, "", _status_md(None, error=True), _progress_md(completed=0, active=0)
+
+    history = history + [{"role": "assistant", "content": res.text or "_..._"}]
 
     card_md = ""
     assessed = None
@@ -161,8 +175,8 @@ def _respond(history: list, message: str, emergency_id: str, district: str,
         # Live step-progress: step 3 (route) is reached only once triage fired.
         progress = _progress_md(completed=3)
     else:
-        # Still interviewing: step 1 done, step 2 in progress.
-        progress = _progress_md(completed=2, active=1)
+        # Still interviewing: step 1 done, step 2 (assess) in progress.
+        progress = _progress_md(completed=1, active=1)
 
     return history, "", _status_md(assessed), progress
 
@@ -184,7 +198,9 @@ def _agent():
 _AGENT = None
 
 
-def _status_md(triage) -> str:
+def _status_md(triage, error: bool = False) -> str:
+    if error:
+        return "⚪ **Service temporarily unavailable**\n\nPlease try again."
     if triage is None:
         return "🔵 Gathering symptoms…"
     emoji = {"critical": "🔴", "urgent": "🟠", "stable": "🟢"}[triage.urgency]
@@ -240,7 +256,7 @@ def build_ui():
             # legend is kept below only as orientation (it never moves).
             with gr.Column(scale=3):
                 # LIVE progress (updateable each turn):
-                progress_md = gr.Markdown(_progress_md(completed=1, active=0))
+                progress_md = gr.Markdown(_progress_md(completed=0, active=0))
                 # Static "how this works" legend using the native Walkthrough:
                 with gr.Accordion("How this works", open=False):
                     with gr.Walkthrough(selected=0):

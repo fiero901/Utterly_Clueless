@@ -22,9 +22,14 @@ SIMULACHAT_BASE = "https://simulachat.sushant.info.np/api/v1"
 
 @dataclass
 class TurnResult:
-    """One turn: the model's guidance text + an (optional) coerced triage."""
+    """One turn: the model's guidance text + an (optional) coerced triage.
+
+    On a backend/API failure, `error` is set (and `text`/`triage` stay empty /
+    None) so the UI can surface a clean "try again" instead of crashing.
+    """
     text: str
     triage: Optional[TriageState] = None
+    error: Optional[str] = None
 
 
 def finish_triage(urgency: str, suspected_pathway: str, symptoms: list,
@@ -89,7 +94,10 @@ def run_turn(message: str, emergency_id: str = "default",
         ctx = ""
     full = ctx + message
     ag = agent if agent is not None else build_agent()
-    out = ag.run(full, session_id=f"emergency:{emergency_id}")
+    try:
+        out = ag.run(full, session_id=f"emergency:{emergency_id}")
+    except Exception as exc:  # noqa: BLE001 — degrade gracefully, never crash the UI
+        return TurnResult(text="", triage=None, error=str(exc))
     raw = next((t.tool_args for t in (out.tools or []) if t.tool_name == "finish_triage"), None)
     triage = coerce_triage(raw) if raw is not None else None
     return TurnResult(text=out.get_content_as_string() or "", triage=triage)
