@@ -1,5 +1,10 @@
-import pytest
-from triage_state import TriageState, coerce_triage
+from triage_state import (
+    TriageState,
+    assess_urgency,
+    candidate_pool,
+    coerce_triage,
+    rank_hospitals,
+)
 
 
 def test_schema_defaults():
@@ -49,9 +54,6 @@ def test_coerce_never_crashes_on_garbage():
         assert t.urgency in ("urgent", "critical", "stable")
 
 
-from triage_state import assess_urgency
-
-
 def test_red_flag_chest_pain_critical():
     t = coerce_triage({"urgency": "stable", "symptoms": ["chest pain", "sweating"]})
     a = assess_urgency(t)
@@ -93,9 +95,6 @@ def test_assess_respects_existing_critical():
     a = assess_urgency(t)
     assert a.urgency == "critical"
     assert a.call_now is True
-
-
-from triage_state import candidate_pool, rank_hospitals
 
 
 def _tri(urgency="urgent"):

@@ -1,6 +1,7 @@
 """Shared fixtures. All deterministic-layer tests use canned data (offline)."""
 import pytest
 
+
 # A small, stable slice of the real freehealth.mohp.gov.np bed-summary shape.
 # Field names are the real feed keys (verified against the live API).
 @pytest.fixture

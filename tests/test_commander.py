@@ -1,4 +1,3 @@
-from types import SimpleNamespace
 from commander import TurnResult, run_turn
 
 
