@@ -1,4 +1,6 @@
 """JeevanRoute — Agno + Gradio emergency command UI (Phase 1: text + location)."""
+# CSS is intentionally kept inline for the single-file Gradio app.
+# ruff: noqa: E501
 from __future__ import annotations
 
 import os
@@ -41,7 +43,7 @@ def get_location(lat, lng):
 
 # --- Browser-persistent local state (replaces memory.js) ---------------------
 _BROWSER_DEFAULT = {
-    "language": None,          # "ne" | "en" | None
+    "language": "en",         # "ne" | "en"
     "district": None,          # default district for routing
     "history": [],             # past emergencies: [{district, urgency, hospital, ts}]
     "last_triage": None,       # latest structured triage (structured only, no chat text)
@@ -230,19 +232,45 @@ def _progress_md(completed: int = 0, active: int = 0) -> str:
 
 
 def build_ui():
-    with gr.Blocks(title="JeevanRoute") as demo:
+    ui_css = """
+    :root { --jr-ink: #172033; --jr-muted: #627084; --jr-blue: #1463d6; }
+    body { background: #f4f7fb; }
+    .gradio-container { max-width: 1480px !important; padding: 22px 28px 36px !important; }
+    .jr-shell { max-width: 1440px; margin: 0 auto; }
+    .jr-hero { background: radial-gradient(circle at 90% 10%, rgba(91,215,206,.28), transparent 33%), linear-gradient(125deg, #102b63 0%, #1463d6 70%, #1c9db8 100%); color: white; border-radius: 24px; padding: 30px 34px; margin-bottom: 14px; box-shadow: 0 18px 42px rgba(16,43,99,.20); }
+    .jr-hero h1 { color: white; font-size: clamp(1.9rem, 3vw, 2.7rem); letter-spacing: -.04em; margin: 0 0 6px; }
+    .jr-hero h3 { color: rgba(255,255,255,.92); font-size: clamp(1.05rem, 2vw, 1.3rem); font-weight: 500; margin: 0; }
+    .jr-alert { background: #fffaf2; border: 1px solid #f7d9a6; border-radius: 14px; padding: 12px 16px; color: #744817; box-shadow: 0 4px 12px rgba(116,72,23,.04); }
+    .jr-panel { border: 1px solid #e2e8f0; border-radius: 18px; padding: 18px; background: rgba(255,255,255,.9); box-shadow: 0 10px 28px rgba(23,32,51,.06); }
+    .jr-panel h3 { margin-top: 0; color: var(--jr-ink); letter-spacing: -.02em; }
+    .jr-panel p { color: var(--jr-muted); }
+    .jr-progress { background: #f7faff; border: 1px solid #dfe8f5; border-radius: 12px; padding: 12px 16px; }
+    .jr-status { background: linear-gradient(180deg, #f9fcff 0%, #f2f7fc 100%); border-color: #d5e2f0; min-height: 150px; }
+    .jr-status h3 { margin-top: 0; }
+    .jr-composer textarea { border-radius: 13px !important; border-color: #cbd8e8 !important; min-height: 52px !important; }
+    .jr-composer textarea:focus { border-color: var(--jr-blue) !important; box-shadow: 0 0 0 3px rgba(20,99,214,.12) !important; }
+    .jr-send button { min-height: 46px; border-radius: 12px; font-weight: 700; box-shadow: 0 7px 16px rgba(20,99,214,.20); }
+    .jr-send button:hover { transform: translateY(-1px); }
+    button.secondary { border-radius: 10px !important; }
+    footer { opacity: .55; }
+    @media (max-width: 800px) { .gradio-container { padding: 12px !important; } .jr-hero { padding: 24px; border-radius: 18px; } .jr-shell { padding: 0; } }
+    """
+    with gr.Blocks(title="JeevanRoute", css=ui_css) as demo:
         profile = gr.BrowserState(_BROWSER_DEFAULT, storage_key="jeevanroute")
         emergency_id = gr.Textbox(label="Session ID (internal)", value="default", visible=False)
 
-        gr.Markdown("## 🏥 JeevanRoute — Emergency Routing")
+        with gr.Column(elem_id="jr-shell"):
+            gr.Markdown("# 🏥 JeevanRoute\n### Stay calm. Get the next right step.", elem_id="jr-hero")
+            gr.Markdown("**Immediate danger?** Call **102** (ambulance) or **112** now. Otherwise, describe what’s happening and we’ll guide you to the right care.", elem_id="jr-alert")
 
-        with gr.Row():
+        with gr.Row(elem_id="jr-shell"):
             # ── Left: conversation history ──────────────────────────────
-            with gr.Column(scale=1, min_width=220):
-                gr.Markdown("### Recent emergencies")
+            with gr.Column(scale=1, min_width=220, elem_classes="jr-panel"):
+                gr.Markdown("### Your details")
+                gr.Markdown("Set these once to get a more relevant hospital recommendation.")
                 history_md = gr.Markdown("_No past emergencies yet._")
                 lang = gr.Radio(["Nepali", "English"], label="Preferred language",
-                                value=None, interactive=True)
+                                value="English", interactive=True)
                 district_in = gr.Textbox(label="District (for routing)", value=None,
                                          placeholder="e.g. Kathmandu", interactive=True)
                 geolocate = gr.Button("📍 Use my location", variant="secondary")
@@ -254,9 +282,9 @@ def build_ui():
             # handler (verified against Gradio 6.29.1). So the LIVE progress
             # is a gr.Markdown rendered by _progress_md(); a static Walkthrough
             # legend is kept below only as orientation (it never moves).
-            with gr.Column(scale=3):
+            with gr.Column(scale=3, elem_classes="jr-panel"):
                 # LIVE progress (updateable each turn):
-                progress_md = gr.Markdown(_progress_md(completed=0, active=0))
+                progress_md = gr.Markdown(_progress_md(completed=0, active=0), elem_id="jr-progress")
                 # Static "how this works" legend using the native Walkthrough:
                 with gr.Accordion("How this works", open=False):
                     with gr.Walkthrough(selected=0):
@@ -270,17 +298,18 @@ def build_ui():
                         gr.Markdown("Best free-bed facility + an action plan "
                                     "with a call button and directions.")
                 # Gradio 6: Chatbot is ALWAYS messages format (no `type` param).
-                chatbot = gr.Chatbot(height=480)
-                with gr.Row():
+                chatbot = gr.Chatbot(height=480, placeholder="Your conversation will appear here. Start by describing what is happening.")
+                gr.Markdown("**Start here:** Tell me who needs help, what happened, and when it started. You can write in English or Nepali.")
+                with gr.Row(elem_classes="jr-composer"):
                     msg = gr.MultimodalTextbox(
                         placeholder="Describe the emergency (text; image in Phase 2)…",
                         file_types=["image"], interactive=True)
-                    submit = gr.Button("Send", variant="primary")
+                    submit = gr.Button("Send securely", variant="primary", elem_classes="jr-send")
 
             # ── Right: live emergency status ────────────────────────────
-            with gr.Column(scale=1, min_width=260):
+            with gr.Column(scale=1, min_width=260, elem_classes="jr-panel jr-status"):
                 gr.Markdown("### Emergency status")
-                status_md = gr.Markdown("🔵 Waiting to start…")
+                status_md = gr.Markdown("🔵 **Ready when you are**\n\nI’ll ask only the questions needed to assess urgency and find nearby care.")
 
         def _save_profile(p, district, language):
             p = dict(p or {})
@@ -341,4 +370,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
