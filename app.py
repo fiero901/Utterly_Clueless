@@ -11,7 +11,9 @@ from dotenv import load_dotenv
 import context
 import triage_state
 from commander import run_turn
+from translations import badge as _badge
 from translations import t as _t
+from translations import urgency_upper as _urgency_upper
 
 # --- Browser geolocation (kept from the previous app) ------------------------
 GEO_JS = """
@@ -31,72 +33,6 @@ GEO_JS = """
 # SpeechRecognition or the older webkitSpeechRecognition name. The transcript
 # is inserted into the normal Gradio composer, so the existing submit flow,
 # privacy boundary, and streaming milestones remain unchanged.
-VOICE_JS = """
-(function() {
-  const initVoice = () => {
-    const button = document.querySelector('#jr-speech-button button');
-    const input = document.querySelector('#jr-input textarea');
-    const status = document.querySelector('#jr-voice-status');
-    if (!button || !input) { setTimeout(initVoice, 100); return; }
-    if (button.dataset.voiceReady === 'true') return;
-    button.dataset.voiceReady = 'true';
-    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const setStatus = (text) => { if (status) status.textContent = text; };
-    if (!Recognition) {
-      button.disabled = true;
-      setStatus('Voice typing is unavailable in this browser. You can still type or upload audio.');
-      return;
-    }
-    let recognition;
-    let listening = false;
-    const language = () => {
-      const nepali = [...document.querySelectorAll('#jr-language input')]
-        .some((el) => el.checked && el.value === 'Nepali');
-      return nepali ? 'ne-NP' : 'en-US';
-    };
-    const setValue = (value) => {
-      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
-      setter.call(input, value);
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    };
-    const stop = () => {
-      if (recognition && listening) recognition.stop();
-      listening = false;
-      button.textContent = '🎙️ Speak';
-    };
-    button.addEventListener('click', () => {
-    if (listening) { stop(); return; }
-    recognition = new Recognition();
-    recognition.lang = language();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.onstart = () => {
-      listening = true;
-      button.textContent = '⏹ Stop listening';
-      setStatus(`Listening in ${recognition.lang === 'ne-NP' ? 'Nepali' : 'English'}…`);
-    };
-    recognition.onresult = (event) => {
-      let transcript = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript;
-      }
-      setValue(transcript.trim());
-      setStatus('Voice converted to text. Review it, then press send.');
-    };
-    recognition.onerror = (event) => {
-      stop();
-      setStatus(event.error === 'not-allowed'
-        ? 'Microphone permission was denied. Allow it for this site, or type instead.'
-        : 'Voice typing could not start. You can still type or upload audio.');
-    };
-    recognition.onend = () => { stop(); };
-    recognition.start();
-    });
-  };
-  initVoice();
-})();
-"""
-
 VOICE_EVENT_JS = """
 () => {
   const button = document.querySelector('#jr-speech-button button') || document.querySelector('#jr-speech-button');
@@ -190,8 +126,7 @@ _BROWSER_DEFAULT = {
 def _render_card(triage: triage_state.TriageState, ranked: list,
                  context_block: str, district: str, lang: str | None = None) -> str:
     urgency = triage.urgency
-    badge = {"critical": _t("b_critical", lang), "urgent": _t("b_urgent", lang),
-             "stable": _t("b_stable", lang)}.get(urgency, urgency)
+    badge = _badge(urgency, lang)
     lines = [f"### {_t('card_triage', lang)} — {badge}", ""]
 
     if triage.call_now:
@@ -424,9 +359,6 @@ def _agent():
 _AGENT = None
 
 
-_URGENCY_UPPER_KEY = {"critical": "critical_upper", "urgent": "urgent_upper", "stable": "stable_upper"}
-
-
 def _status_md(triage, error: bool = False, lang: str | None = None) -> str:
     if error:
         return _t("st_error", lang)
@@ -434,7 +366,7 @@ def _status_md(triage, error: bool = False, lang: str | None = None) -> str:
         return _t("st_gathering", lang)
     emoji = {"critical": "🔴", "urgent": "🟠", "stable": "🟢"}[triage.urgency]
     flags = "\n".join(f"- {f}" for f in triage.red_flags) or f"- {_t('none', lang)}"
-    return f"{emoji} **{_t(_URGENCY_UPPER_KEY[triage.urgency], lang)}**\n\n**{_t('red_flags', lang)}:**\n{flags}"
+    return f"{emoji} **{_urgency_upper(triage.urgency, lang)}**\n\n**{_t('red_flags', lang)}:**\n{flags}"
 
 
 _PROGRESS_STEP_KEYS = ["prog_1", "prog_2", "prog_3"]

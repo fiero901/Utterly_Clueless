@@ -47,11 +47,16 @@ EN: dict = {
     "input_label": "Type what’s happening here",
     "input_ph": "Describe what’s happening…",
     "voice_status": "Browser speech-to-text • review before sending",
-    "voice_unavailable": "Voice typing is unavailable in this browser. You can still type or upload audio.",
+    "voice_unavailable": (
+        "Voice typing is unavailable in this browser. You can still type or upload audio."
+    ),
     "examples_label": "Try an example",
     # Status panel
     "status_title": "### Emergency status",
-    "status_ready": "🔵 **Ready when you are**\n\nI’ll ask only the questions needed to assess urgency and find nearby care.",
+    "status_ready": (
+        "🔵 **Ready when you are**\n\nI’ll ask only the questions needed to assess urgency "
+        "and find nearby care."
+    ),
     # Dynamic status states
     "st_error": "⚪ **Service temporarily unavailable**\n\nPlease try again.",
     "st_gathering": "🔵 Gathering symptoms…",
@@ -82,11 +87,17 @@ EN: dict = {
     "ms_reading": "Reading your message",
     "ms_reading_body": "I’m identifying the key details so I can ask only what matters.",
     "ms_working": "🔵 **Working on it…**\n\nReading the emergency description.",
-    "ms_gathering2": "🔵 **Gathering symptoms…**\n\nI need one more detail before assessing urgency.",
+    "ms_gathering2": (
+        "🔵 **Gathering symptoms…**\n\nI need one more detail before assessing urgency."
+    ),
     "ms_checking": "Applying safety checks to the information you shared.",
-    "ms_checking_urgency": "🧭 **Checking urgency…**\n\nApplying safety checks to the information you shared.",
+    "ms_checking_urgency": (
+        "🧭 **Checking urgency…**\n\nApplying safety checks to the information you shared."
+    ),
     "ms_finding": "Checking facilities and live bed availability.",
-    "ms_finding_care": "🏥 **Finding available care…**\nChecking facilities and live bed availability.",
+    "ms_finding_care": (
+        "🏥 **Finding available care…**\nChecking facilities and live bed availability."
+    ),
     "ms_plan_ready": "✅ **Action plan ready**",
     "err_retry": ("⚠️ I couldn't reach the emergency service just now — "
                   "please tap **Send** once more. If it persists, call "
@@ -129,7 +140,10 @@ NE: dict = {
     "voice_unavailable": "यस ब्राउजरमा भ्वाइस टाइपिङ उपलब्ध छैन। तपाईंले टाइप वा ध्वनि अपलोड गर्न सक्नुहुन्छ।",
     "examples_label": "एउटा उदाहरण प्रयास गर्नुहोस्",
     "status_title": "### आपत्कालीन अवस्था",
-    "status_ready": "🔵 **तपाईं तयार हुँदा सुरु गर्नुहोस्**\n\nगम्भीरता मूल्याङ्कन गर्न र नजिकैको उपचार खोज्न आवश्यक प्रश्नहरू मात्र सोध्नेछु।",
+    "status_ready": (
+        "🔵 **तपाईं तयार हुँदा सुरु गर्नुहोस्**\n\nगम्भीरता मूल्याङ्कन गर्न र नजिकैको उपचार "
+        "खोज्न आवश्यक प्रश्नहरू मात्र सोध्नेछु।"
+    ),
     "st_error": "⚪ **सेवा अस्थायी रूपमा उपलब्ध छैन**\n\nकृपया फेरि प्रयास गर्नुहोस्।",
     "st_gathering": "🔵 लक्षणहरू जम्मा गर्दै…",
     "red_flags": "खतराका संकेत:",
@@ -159,7 +173,9 @@ NE: dict = {
     "ms_working": "🔵 **काम गर्दै…**\n\nआपत्कालीन अवस्थाको विवरण पढ्दैछु।",
     "ms_gathering2": "🔵 **लक्षणहरू सङ्कलन गर्दै…**\n\nगम्भीरता मूल्याङ्कन गर्नुअघि थप एउटा विवरण चाहिन्छ।",
     "ms_checking": "तपाईंले साझा गरेको जानकारीमा सुरक्षा जाँच लागू गरिँदैछ।",
-    "ms_checking_urgency": "🧭 **गम्भीरता जाँच गर्दै…**\n\nतपाईंले साझा गरेको जानकारीमा सुरक्षा जाँच लागू गर्दैछु।",
+    "ms_checking_urgency": (
+        "🧭 **गम्भीरता जाँच गर्दै…**\n\nतपाईंले साझा गरेको जानकारीमा सुरक्षा जाँच लागू गर्दैछु।"
+    ),
     "ms_finding": "सुविधा र लाइभ बिस्तर उपलब्धता जाँच गरिँदैछ।",
     "ms_finding_care": "🏥 **उपलब्ध उपचार खोजिँदै…**\nसुविधा र लाइभ बिस्तर उपलब्धता जाँच गरिँदैछ।",
     "ms_plan_ready": "✅ **कार्ययोजना तयार छ**",

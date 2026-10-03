@@ -121,7 +121,11 @@ def run_turn(message: str, emergency_id: str = "default",
     if district:
         context_parts.append(f"District: {district}. Location is available for routing.")
     if language:
-        preferred = "Nepali (Devanagari script, Nepali)" if language in ("ne", "Nepali") else "English"
+        preferred = (
+            "Nepali (Devanagari script, Nepali)"
+            if language in ("ne", "Nepali")
+            else "English"
+        )
         context_parts.append(
             f"RESPOND LANGUAGE LOCK: You must reply ENTIRELY in {preferred} — "
             f"every single sentence, including any questions you ask. Do not "

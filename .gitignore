@@ -11,6 +11,13 @@ venv/
 # Gradio
 .gradio/
 
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+
+# Local logs
+*.log
+
 # OS
 .DS_Store
 
