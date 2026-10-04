@@ -15,15 +15,36 @@ from translations import badge as _badge
 from translations import t as _t
 from translations import urgency_upper as _urgency_upper
 
-# --- Browser geolocation (kept from the previous app) ------------------------
+# --- Browser geolocation ------------------------------------------------------
+# Gradio's `js=` return value is unreliable as an event input (it can be dropped,
+# arriving as None), so instead of returning coords we WRITE them into a hidden
+# Textbox (#jr-geo-coords). The click handler then reads that component as a
+# normal input — a supported, deterministic path. Format: "lat,lng" or
+# "ERR:<reason>" so the handler can show an actionable message. Browsers only
+# expose navigator.geolocation on secure origins (https:// or localhost); on any
+# other http:// origin it is undefined, reported as "insecure".
 GEO_JS = """
 () => {
-    return new Promise((resolve, reject) => {
-        if (!navigator.geolocation) { resolve([null, null]); return; }
+    const box = document.querySelector('#jr-geo-coords textarea') || document.querySelector('#jr-geo-coords');
+    const setVal = (v) => {
+        if (!box) return;
+        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+        setter.call(box, v);
+        box.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    // Return a promise so Gradio awaits geolocation BEFORE the .then() handler
+    // reads geo_coords — otherwise the async GPS callback lands too late.
+    return new Promise((resolve) => {
+        if (!window.isSecureContext || !navigator.geolocation) { setVal('ERR:insecure'); resolve(); return; }
         navigator.geolocation.getCurrentPosition(
-            (pos) => resolve([pos.coords.latitude, pos.coords.longitude]),
-            () => resolve([null, null]),
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            (pos) => { setVal(pos.coords.latitude + ',' + pos.coords.longitude); resolve(); },
+            (err) => {
+                const reason = err && err.code === err.PERMISSION_DENIED ? 'denied'
+                    : err && err.code === err.TIMEOUT ? 'timeout'
+                    : 'unavailable';
+                setVal('ERR:' + reason); resolve();
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
         );
     });
 }
@@ -94,19 +115,37 @@ RESTORE_LANG_JS = """
 """
 
 
-def get_location(lat, lng):
-    """Reverse-geocode browser coords to a district name (the 'Use my location'
-    button). Returns (district, status message). Precise-coords ETA is a
+# Browser geolocation failure reason -> translation key.
+_GEO_FAIL_KEY = {
+    "insecure": "locate_insecure",
+    "denied": "locate_denied",
+    "timeout": "locate_timeout",
+    "unavailable": "locate_unavailable",
+}
+
+
+def get_location(coords, lang=None):
+    """Resolve the hidden geolocation textbox value to a district name.
+
+    `coords` is "lat,lng" on success or "ERR:<reason>" on failure (written by
+    GEO_JS). Returns (district, status message). Precise-coords ETA is a
     Phase 1.x refinement; Phase 1 routes from the district."""
-    if not lat or not lng:
-        return "", (
-            "⚠️ The browser could not provide your location. Allow location "
-            "access and try again, or enter your district manually.")
-    district = context.reverse_geocode(float(lat), float(lng))
+    text = (coords or "").strip()
+    if not text:
+        return "", _t("locate_fail", lang)
+    if text.startswith("ERR:"):
+        key = _GEO_FAIL_KEY.get(text[4:], "locate_fail")
+        return "", _t(key, lang)
+    try:
+        lat_s, lng_s = text.split(",")[:2]
+        lat, lng = float(lat_s), float(lng_s)
+    except (ValueError, TypeError):
+        return "", _t("locate_fail", lang)
+    district = context.reverse_geocode(lat, lng)
     if not district:
-        return "", "⚠️ Location received, but the district could not be " \
-                    "identified. Enter your district manually."
-    return district, ""
+        return "", ("⚠️ Location received, but the district could not be "
+                    "identified. Enter your district manually.")
+    return district, _t("locate_ok", lang) + f" **{district.title()}**"
 
 # --- Browser-persistent local state (replaces memory.js) ---------------------
 _BROWSER_DEFAULT = {
@@ -719,6 +758,9 @@ def build_ui():
                 district_in = gr.Textbox(label="District (for routing)", value=None,
                                          placeholder="e.g. Kathmandu", interactive=True, elem_id="jr-district")
                 geolocate = gr.Button("📍 Use my location", variant="secondary", elem_id="jr-geolocate")
+                # Hidden carrier for browser geolocation. GEO_JS writes "lat,lng"
+                # (or "ERR:<reason>") here; _locate reads it as a normal input.
+                geo_coords = gr.Textbox(value="", visible=False, elem_id="jr-geo-coords")
                 geo_status = gr.Markdown("")
                 history_md = gr.Markdown("_No past emergencies yet._", elem_id="jr-history")
 
@@ -791,11 +833,12 @@ def build_ui():
                 yield (new_hist, new_msg, status, profile_state,
                        _show_history(profile_state))
 
-        def _locate(lat_lng=None):
-            if not lat_lng or len(lat_lng) < 2:
-                return "", "⚠️ Could not get location — type your district instead."
-            d, note = get_location(lat_lng[0], lat_lng[1])
-            return d, note
+        def _locate(coords=None):
+            # GEO_JS writes "lat,lng" (or "ERR:<reason>") into the hidden
+            # geo_coords textbox; we read it as a normal component input and then
+            # clear it (third output) so a stale value never carries over.
+            district, note = get_location(coords)
+            return district, note, ""
 
         def _code(language) -> str:
             return "ne" if language == "Nepali" else "en"
@@ -865,11 +908,18 @@ def build_ui():
             js=RESTORE_LANG_JS,
         )
 
+        # GEO_JS (js=) writes coords into geo_coords; then _locate reads that
+        # component as a normal input. We also reset geo_coords so a stale value
+        # never carries over to the next click.
         geolocate.click(
-            _locate,
+            None,
             inputs=[],
-            outputs=[district_in, geo_status],
-            js=GEO_JS)
+            outputs=[geo_coords],
+            js=GEO_JS,
+            queue=False).then(
+            _locate,
+            inputs=[geo_coords],
+            outputs=[district_in, geo_status, geo_coords])
 
         _outs = [chatbot, msg, status_md, profile, history_md]
         _ins = [msg, chatbot, emergency_id, profile, district_in, lang]
@@ -883,9 +933,15 @@ def main():
     load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
     demo = build_ui()
     _icon = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "jeevanroute-icon.png")
+    # Browsers only allow navigator.geolocation on secure origins (https:// or
+    # localhost). When the app is reached over plain http:// from a non-local
+    # host, "Use my location" is blocked. Enabling a Gradio share link provides
+    # an HTTPS URL where geolocation works; set JEEVANROUTE_SHARE=0 to disable.
+    _share = os.environ.get("JEEVANROUTE_SHARE", "1") != "0"
     demo.queue().launch(
         server_name="0.0.0.0",
         server_port=7860,
+        share=_share,
         css=UI_CSS,
         theme=gr.themes.Soft(),
         pwa=True,
